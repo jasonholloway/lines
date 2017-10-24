@@ -1,5 +1,6 @@
 package com.woodpigeon.lines
 
+import scala.collection.immutable.Stack
 import scala.util.Success
 
 case class PointAdded(point: Point) extends Event
@@ -8,7 +9,7 @@ case class ModeSet(mode: Mode.Value) extends Event
 case class FrameAdded(frame: Frame) extends Event
 case class Solve() extends Event
 
-case class App(currMode: Mode.Value, lastPoint: Option[Point] = None, lines: Seq[Line] = Seq(), frame: Frame = null) extends Machine {
+case class App(currMode: Mode.Value, lastPoint: Option[Point] = None, lines: Seq[Line] = Seq(), frames: List[Frame] = List()) extends Machine {
 
   def handle(ev: Event) : Result = ev match {
     case ToggleMode() => currMode match {
@@ -35,19 +36,19 @@ case class App(currMode: Mode.Value, lastPoint: Option[Point] = None, lines: Seq
 
     case LineAdded(line) => copy(lines = lines.union(Seq(line)))
 
-    case FrameAdded(frame) => copy(frame = frame)
+    case FrameAdded(frame) => copy(frames = frame :: frames)
 
-    case Solve() => frame match {
-      case null => ()
-      case f => {
-        val newPoints = f.lines.map(_.midpoint)
+    case Solve() => frames match {
+      case Nil => ()
+      case f :: _ =>
+        val points = f.lines.map(_.midpoint)
 
-        val newLines = newPoints.foldLeft[(Option[Point], Seq[Line])]
-                                (None, Seq())
-                                { (point: Option[Point], lines: Seq[Line]) => (Some(point), lines) }
+        val newLines = points.foldLeft[(List[Line], Option[Point])] (Nil, None) {
+          case ((_, None), point) => (Nil, Some(point))
+          case ((currLines, Some(last)), point) => (Line(last, point) :: currLines, Some(point))
+        } match { case (l, _) => l }
 
         FrameAdded(Frame(newLines))
-      }
     }
 
     case _ => ()
